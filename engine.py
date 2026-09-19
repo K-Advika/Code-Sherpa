@@ -1,60 +1,175 @@
 import os
 import json
 import requests
+import zipfile
+import io
+import boto3
 from datetime import datetime
+from dotenv import load_dotenv
+from google import genai
+import time
+from fastapi import FastAPI
+from pydantic import BaseModel
+import uvicorn
 
-# TOOL 1: Read the Link
-def get_issue_title(github_url):
-    print(f"Contacting GitHub for: {github_url}")
-    response = requests.get(github_url)
+# Load credentials from the .env file
+load_dotenv()
+
+AWS_ACCESS_KEY = os.getenv("MY_ACCESS_KEY")
+AWS_SECRET_KEY = os.getenv("MY_SECRET_KEY")
+BUCKET_NAME = os.getenv("MY_BUCKET_NAME")
+S3_REGION = os.getenv("AWS_REGION", "ap-south-1")
+BEDROCK_REGION = os.getenv("BEDROCK_REGION", "us-east-1")
+
+# TOOL 1: Read the Live GitHub Issue
+def get_bug_details(issue_url):
+    print("\n1. Fetching bug report from GitHub...")
+    response = requests.get(issue_url)
+    response.raise_for_status()
     data = response.json()
-    return data.get("title").lower()
-
-# TOOL 2: Find the Files (Now returns the name of the file it found!)
-def scan_local_folder(folder_path, target_word):
-    print(f"\nScanning the '{folder_path}' folder...")
     
-    for filename in os.listdir(folder_path):
-        file_path = f"{folder_path}/{filename}"
-        with open(file_path, "r") as file:
-            file_text = file.read().lower()
+    # Extract "owner/repo" from the API URL
+    repo_name = issue_url.split("repos/")[1].split("/issues")[0]
+    
+    return {
+        "title": data.get("title", ""),
+        "body": data.get("body", ""),
+        "repo_name": repo_name
+    }
 
-        if target_word in file_text:
-            print(f" BINGO! The bug is hiding inside: {filename}")
-            return filename # Hand the answer back!
+# TOOL 2: Download the Real Source Code
+def download_repo(repo_name):
+    print(f"2. Downloading source code for {repo_name}...")
+    
+    # Check main branch first, fallback to master
+    zip_url = f"https://github.com/{repo_name}/archive/refs/heads/main.zip"
+    response = requests.get(zip_url)
+    
+    if response.status_code != 200:
+        zip_url = f"https://github.com/{repo_name}/archive/refs/heads/master.zip"
+        response = requests.get(zip_url)
+        response.raise_for_status()
+        
+    # Extract entirely in memory to save disk write time
+    with zipfile.ZipFile(io.BytesIO(response.content)) as zip_ref:
+        zip_ref.extractall("live_repo_code")
+
+    print(" Code extracted into the 'live_repo_code' folder.")
+    return "live_repo_code"
+
+# TOOL 3: Temporary Gemini Bridge (Using the NEW SDK)
+
+
+# TOOL 3: Temporary Gemini Bridge (With Retry & Chat API)
+def ask_bedrock(bug_data, folder_path):
+    print("\n3. AWS is locked. Routing analysis through Google Gemini...")
+    
+    code_context = ""
+    for root, _, files in os.walk(folder_path):
+        for file in files:
+            if file.endswith(('.py', '.js', '.ts', '.html', '.md', '.txt')):
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        code_context += f"\n--- FILE: {file} ---\n"
+                        code_context += f.read()[:2500]
+                except Exception:
+                    continue
+
+    prompt = f"""You are an expert software engineer and debugger.
+Bug Title: {bug_data['title']}
+Bug Description: {bug_data['body']}
+
+Repository Source Code:
+{code_context}
+
+Based on the bug report and the code provided, identify the file most likely responsible for this issue.
+Respond ONLY with the exact filename (e.g., "app.py" or "helpers.py") and a one-sentence reason why."""
+
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    
+    # We will try up to 3 times in case the server is busy
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            # We use the 'chats' API to silence the annoying AFC warning
+            chat = client.chats.create(model="gemini-3.6-flash")
+            response = chat.send_message(prompt)
             
-    return "No bug found"
+            verdict = response.text.strip()
+            print(f"🧠 Gemini Analysis:\n{verdict}")
+            return verdict
+            
+        except Exception as e:
+            error_msg = str(e)
+            if "503" in error_msg or "UNAVAILABLE" in error_msg:
+                print(f"⚠️ Google server busy (Attempt {attempt + 1}/{max_retries}). Waiting 5 seconds...")
+                time.sleep(5)
+            else:
+                print(f"❌ GEMINI ERROR: {e}")
+                return "Analysis Failed (Gemini Error)"
+                
+    return "Analysis Failed (Google Servers Overloaded)"
 
-# TOOL 3: Save a Receipt
-def save_receipt(issue_url, found_file):
-    print("\nSaving receipt...")
+# TOOL 4: Save Scan Receipt to AWS S3
+def save_receipt(issue_url, analysis_result):
+    print("\n4. Saving audit receipt to AWS S3...")
     
-    # Package our data into a neat dictionary
     receipt_data = {
         "searched_link": issue_url,
-        "found_bug_in": found_file,
+        "bug_verdict": analysis_result, 
         "time_scanned": str(datetime.now())
     }
     
-    # Create a unique file name using the current time
-    timestamp = datetime.now().strftime('%H%M%S')
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     file_name = f"receipts/scan_{timestamp}.json"
     
-    # Save the dictionary into a real file
-    with open(file_name, "w") as file:
-        json.dump(receipt_data, file, indent=4)
+    try:
+        # Initialize the S3 client pointing to ap-south-1
+        s3 = boto3.client(
+            's3',
+            region_name=S3_REGION,
+            aws_access_key_id=AWS_ACCESS_KEY,
+            aws_secret_access_key=AWS_SECRET_KEY
+        )
         
-    print(f" Receipt saved as: {file_name}")
+        s3.put_object(
+            Bucket=BUCKET_NAME,
+            Key=file_name,
+            Body=json.dumps(receipt_data, indent=2)
+        )
+        print(f" SUCCESS! Receipt saved to S3 bucket '{BUCKET_NAME}' at '{file_name}'")
+    except Exception as e:
+        print(f" S3 ERROR: {e}")
 
-# --- HOW TO USE YOUR TOOLS ---
-my_link = "https://api.github.com/repos/pallets/flask/issues/5000"
-my_folder = "demo"
+# --- NEW FASTAPI SERVER ---
 
-# 1. Get the title
-bug_title = get_issue_title(my_link)
+# 1. Initialize the web server
+app = FastAPI()
 
-# 2. Find the file AND save the answer in a variable
-guilty_file = scan_local_folder(my_folder, bug_title)
+# 2. Define the data structure we expect the frontend to send
+class IssueRequest(BaseModel):
+    github_url: str
 
-# 3. Save the receipt!
-save_receipt(my_link, guilty_file)
+# 3. Create the API endpoint (the "listener")
+@app.post("/scan")
+def scan_issue(request: IssueRequest):
+    print(f"\n🚀 Incoming request from frontend: {request.github_url}")
+    
+    # Run your exact pipeline using the URL provided by the frontend
+    bug_info = get_bug_details(request.github_url)
+    extracted_folder = download_repo(bug_info["repo_name"])
+    verdict = ask_bedrock(bug_info, extracted_folder) 
+    save_receipt(request.github_url, verdict)
+    
+    # Send the final answer back out to the frontend
+    return {
+        "status": "success",
+        "searched_url": request.github_url,
+        "verdict": verdict
+    }
+
+# 4. Keep the server awake
+if __name__ == "__main__":
+    print("Starting Code Sherpa Backend on http://0.0.0.0:10000...")
+    uvicorn.run(app, host="0.0.0.0", port=10000)
