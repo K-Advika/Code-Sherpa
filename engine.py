@@ -16,6 +16,7 @@ from fastapi import FastAPI, HTTPException
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
+import random
 
 # Load credentials from the .env file
 load_dotenv()
@@ -356,7 +357,17 @@ def build_prompt(bug_data: dict, code_context: str) -> str:
 def analyze_with_gemini(bug_data, code_context):
     print("\n3. AWS is locked. Routing analysis through Google Gemini...")
 
-    api_key = os.getenv("GEMINI_API_KEY")
+    # --- MULTI-KEY ROUTER ---
+    raw_keys = os.getenv("GEMINI_API_KEY", "")
+    valid_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
+    
+    if not valid_keys:
+        raise PipelineError(500, "GEMINI_API_KEY is not configured on the server.")
+        
+    api_key = random.choice(valid_keys)
+    print(f"🔑 Routing traffic through Gemini key ending in ...{api_key[-4:]}")
+    # ------------------------
+
     if not api_key:
         raise PipelineError(500, "GEMINI_API_KEY is not configured on the server.")
 
