@@ -340,8 +340,8 @@ code-sherpa/
 
 | Name | Role | Links |
 |---|---|---|
-| Advika | e.g. Backend and AI | [GitHub](https://github.com/K-Advika) |
-| Pratham | e.g. Frontend and design | [GitHub](https://github.com/pratham-s-builtwithlogic) |
+| Advika | e.g. Frontend and design  | [GitHub](https://github.com/K-Advika) |
+| Pratham | e.g. Backend and AI | [GitHub](https://github.com/pratham-s-builtwithlogic) |
 
 Built for **Meridian**.
 
