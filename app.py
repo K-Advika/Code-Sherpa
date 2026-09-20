@@ -29,7 +29,7 @@ def _setting(name, default=""):
         return default
 
 
-BACKEND_BASE = str(_setting("BACKEND_URL", "https://code-sherpa-server.onrender.com")).rstrip("/")
+BACKEND_BASE = str(_setting("BACKEND_URL", "http://localhost:10000")).rstrip("/")
 SCAN_ENDPOINT = f"{BACKEND_BASE}/scan"
 GITHUB_TOKEN = _setting("GITHUB_TOKEN")
 
