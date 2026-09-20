@@ -784,8 +784,7 @@ st.session_state.setdefault("result", None)
 
 st.markdown(
     f"<div class='hero'>{LOGO}<h1>Code Sherpa</h1></div>"
-    "<div class='tagline'>Issue-driven onboarding for open-source beginners. "
-    "Bring a GitHub issue and get a guided route into the codebase.</div>",
+    "<div class='tagline'>An issue triage tool that walks you through unfamiliar repositories.</div>",
     unsafe_allow_html=True,
 )
 
