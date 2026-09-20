@@ -10,7 +10,7 @@
 ![Gemini](https://img.shields.io/badge/AI-Google%20Gemini-4285F4?logo=googlegemini&logoColor=white)
 ![AWS S3](https://img.shields.io/badge/Storage-AWS%20S3-FF9900?logo=amazons3&logoColor=white)
 
-[Live Demo](https://frontend-6.streamlit.app/) ·
+[Live Demo](https://frontend-6.streamlit.app)
 
 <!-- Replace with a real screenshot or a 10-15 second GIF of one full scan -->
 <img src="assets/demo.gif" alt="Code Sherpa demo" width="820">
@@ -67,7 +67,7 @@ flowchart LR
 5. **Fetch.** The backend reads the issue and downloads the repository zip into memory. Nothing is written to disk.
 6. **Rank.** Files are scored against the issue text and the best ones are packed into a fixed character budget.
 7. **Explain.** One randomly chosen Gemini key analyses the issue and code with a strict mentor-style prompt.
-8. **Receipt.** The verdict is saved to S3 (if configured) and returned to the UI.
+8. **Receipt.** A receipt is saved to S3 and the verdict is returned to the UI.
 
 ### How files are chosen
 
@@ -92,7 +92,7 @@ Keywords are the most frequent meaningful words in the issue (the title counts d
 | Max issue description sent | 8,000 chars |
 | Max code sent to the model | 60,000 chars |
 | Gemini retries | 3 attempts on 429 / 503 (waits 4s, then 8s) |
-| Prompt-injection hardening | Issue and code text are wrapped in tags and stripped of look-alike tags; the model is told to treat them as data |
+| Prompt-injection hardening | Issue and code text are wrapped in tags, look-alike tags inside them are neutralized, and the model is told to treat them as data |
 
 ---
 
@@ -133,7 +133,7 @@ python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env             # then edit .env and add your keys
+cp .env.example .env             # Windows: copy .env.example .env  (then edit .env and add your keys)
 python engine.py
 ```
 
@@ -149,8 +149,8 @@ python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-mkdir -p .streamlit
-cp .streamlit/secrets.toml.example .streamlit/secrets.toml   # set BACKEND_URL to http://localhost:10000
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml   # Windows: copy .streamlit\secrets.toml.example .streamlit\secrets.toml
+# then open secrets.toml and confirm BACKEND_URL = "http://localhost:10000"
 streamlit run app.py
 ```
 
@@ -269,10 +269,6 @@ Every verdict follows the same four-part structure (under about 300 words):
 ### ⚠️ Why This Matters (Impact)           → real-world consequence
 ```
 
-<!-- Optional: paste a real verdict from a well-known issue here -->
-
----
-
 ## Deployment
 
 **Backend on Render**
@@ -344,11 +340,11 @@ code-sherpa/
 
 | Name | Role | Links |
 |---|---|---|
-| YOUR NAME | e.g. Backend and AI | [GitHub](https://github.com/YOUR-USERNAME) |
-| TEAMMATE | e.g. Frontend and design | [GitHub](https://github.com/TEAMMATE) |
+| Advika | e.g. Backend and AI | [GitHub](https://github.com/K-Advika) |
+| Pratham | e.g. Frontend and design | [GitHub](https://github.com/pratham-s-builtwithlogic) |
 
-Built for **HACKATHON NAME**.
+Built for **Meridian**.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. 
