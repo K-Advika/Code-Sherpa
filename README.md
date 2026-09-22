@@ -10,7 +10,7 @@
 ![Gemini](https://img.shields.io/badge/AI-Google%20Gemini-4285F4?logo=googlegemini&logoColor=white)
 ![AWS S3](https://img.shields.io/badge/Storage-AWS%20S3-FF9900?logo=amazons3&logoColor=white)
 
-[Live Demo](https://frontend-6.streamlit.app)
+
 
 <!-- Replace with a real screenshot or a 10-15 second GIF of one full scan -->
 <img src="assets/demo.gif" alt="Code Sherpa demo" width="820">
